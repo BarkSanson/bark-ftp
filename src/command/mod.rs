@@ -1,16 +1,16 @@
 
 pub enum CommandType {
-    USER,
-    QUIT,
-    UNIMPLEMENTED,
+    User,
+    Quit,
+    Unimplemented,
 }
 
 impl CommandType {
     pub fn from_string(command: String) -> Self {
         match command.as_str() {
-            "USER" => Self::USER,
-            "QUIT" => Self::QUIT,
-            _ => Self::UNIMPLEMENTED,
+            "USER" => Self::User,
+            "QUIT" => Self::Quit,
+            _ => Self::Unimplemented,
         }
     }
 }

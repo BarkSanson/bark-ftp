@@ -53,7 +53,7 @@ impl FtpServer for Server {
                             let request = request.unwrap(); 
 
                             match request.command {
-                                 CommandType::USER => {
+                                 CommandType::User=> {
                                     // Fix this
                                     let binding = request.arguments.unwrap();
                                     let user = binding.first().unwrap();
@@ -62,7 +62,7 @@ impl FtpServer for Server {
                                         .write_all(format!("Authenticating user {}\n", user)
                                         .as_bytes());
                                 },
-                                CommandType::QUIT => {
+                                CommandType::Quit => {
                                     let _ = socket
                                         .write_all("Quitting session...\n".as_bytes());
 
