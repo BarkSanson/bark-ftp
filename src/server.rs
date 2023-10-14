@@ -2,7 +2,7 @@ use std::io::{Error, Read, Write};
 use std::net::{SocketAddr, TcpListener};
 use std::thread;
 use crate::command::CommandType;
-use crate::request::FtpRequest;
+use crate::request::{FtpRequest, self};
 
 pub trait FtpServer {
     fn run(&mut self);
@@ -44,27 +44,34 @@ impl FtpServer for Server {
                             let str_buff = String::from_utf8_lossy(&buff);
                             let request = FtpRequest::from_string(str_buff.to_string());
 
+                            if let Err(err) = request {
+                                // TODO: unwrap
+                                socket.write_all(format!("{}\n", err).as_bytes()).unwrap();
+                                continue;
+                            }
+
+                            let request = request.unwrap(); 
+
                             match request.command {
                                  CommandType::USER => {
-                                    //if args.len() <= 1 {
-                                    //    panic!("No arguments with USER command")
-                                    //}
+                                    // Fix this
+                                    let binding = request.arguments.unwrap();
+                                    let user = binding.first().unwrap();
 
                                     let _ = socket
-                                        .write_all(format!("Authenticating user {}\n", args[0])
-                                            .as_bytes());
+                                        .write_all(format!("Authenticating user {}\n", user)
+                                        .as_bytes());
                                 },
                                 CommandType::QUIT => {
                                     let _ = socket
-                                        .write_all(format!("Quitting session...\n")
-                                        .as_bytes());
+                                        .write_all("Quitting session...\n".as_bytes());
 
                                     // We will have to do this now,
                                     // but socket closing should be more "gentle"
                                     drop(socket);
                                     break;
                                 },
-                                _ => unimplemented!("Command {} not implemented", command)
+                                _ => unimplemented!("Command not implemented")
                             }
 
                             // Reset buff so it can read fresh new data

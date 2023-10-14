@@ -9,14 +9,14 @@ use std::fmt;
 #[derive(Debug)]
 pub enum FtpError {
     IoError(std::io::Error),
-    ParseError(String),
+    RequestError(String)
 }
 
 impl fmt::Display for FtpError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::IoError(e) => write!(f, "IO Error: {}", e),
-            Self::ParseError(e) => write!(f, "Parse Error: {}", e),
+            Self::RequestError(e) => write!(f, "Request Error: {}", e),
         }
     }
 }

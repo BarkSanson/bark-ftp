@@ -1,4 +1,3 @@
-mod quit;
 
 pub enum CommandType {
     USER,
