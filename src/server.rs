@@ -1,20 +1,20 @@
-use std::io::{Error, Read, Write};
-use std::net::{SocketAddr, TcpListener};
-use std::thread;
-use crate::command::CommandType;
-use crate::request::{FtpRequest, self};
+use tokio::net::TcpListener;
+use tokio::net::ToSocketAddrs;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-pub trait FtpServer {
-    fn run(&mut self);
-}
+use bytes::BytesMut;
+
+use crate::command::CommandType;
+use crate::request::FtpRequest;
+
 
 pub struct Server {
     control_socket: TcpListener,
 }
 
 impl Server {
-    pub fn new(control_addr: SocketAddr) -> Result<Self, Error> {
-        let control_socket = TcpListener::bind(control_addr)?;
+    pub async fn new<T: ToSocketAddrs>(control_addr: T) -> Result<Self, std::io::Error> {
+        let control_socket = TcpListener::bind(control_addr).await?;
 
         Ok(Self {
             control_socket,
@@ -22,66 +22,61 @@ impl Server {
     }
 }
 
-impl FtpServer for Server {
-    fn run(&mut self) {
-        for stream in self.control_socket.incoming() {
-            match stream {
-                Ok(mut socket) => {
-                    thread::spawn(move || {
-                        loop {
-                            let mut buff: [u8; 1024] = [0; 1024];
-                            match socket.read(&mut buff) {
-                                // Closed connection
-                                Ok(0) => {
-                                    // Terminate connection with client
-                                    drop(socket);
-                                    break;
-                                },
-                                Ok(_) => {},
-                                Err(e) => panic!("{}", e),
-                            };
+impl Server {
+    pub async fn run(&mut self) {
+        loop {
+            let (mut stream, _) = self.control_socket.accept().await.unwrap();
 
-                            let str_buff = String::from_utf8_lossy(&buff);
-                            let request = FtpRequest::from_string(str_buff.to_string());
+            tokio::spawn(async move {
+                let mut buf = BytesMut::new();
 
-                            if let Err(err) = request {
-                                // TODO: unwrap
-                                socket.write_all(format!("{}\n", err).as_bytes()).unwrap();
-                                continue;
-                            }
-
-                            let request = request.unwrap(); 
-
-                            match request.command {
-                                 CommandType::User=> {
-                                    // Fix this
-                                    let binding = request.arguments.unwrap();
-                                    let user = binding.first().unwrap();
-
-                                    let _ = socket
-                                        .write_all(format!("Authenticating user {}\n", user)
-                                        .as_bytes());
-                                },
-                                CommandType::Quit => {
-                                    let _ = socket
-                                        .write_all("Quitting session...\n".as_bytes());
-
-                                    // We will have to do this now,
-                                    // but socket closing should be more "gentle"
-                                    drop(socket);
-                                    break;
-                                },
-                                _ => unimplemented!("Command not implemented")
-                            }
-
-                            // Reset buff so it can read fresh new data
-                            // from socket
-                            buff = [0; 1024];
+                loop {
+                    let n = match stream.read(&mut buf).await {
+                        Ok(n) if n == 0 => return,
+                        Ok(n) => n,
+                        Err(e) => {
+                            eprintln!("failed to read from socket; err = {:?}", e);
+                            return;
                         }
-                    });
-                },
-                Err(e) => eprintln!("Could not accept connection {}", e)
-            }
+                    };
+
+                    let str_buf = String::from_utf8_lossy(&buf[..n]);
+                    let request = FtpRequest::from_string(str_buf.to_string());
+
+
+                    if let Err(err) = request {
+                        // TODO: unwrap
+                        let _ = stream.write(format!("Error parsing request: {}\n, err", err).as_bytes()).await.unwrap();
+                        continue;
+                    }
+
+                    let request = request.unwrap();
+                    match request.command {
+                        CommandType::User=> {
+                            // Fix this
+                            let binding = request.arguments.unwrap();
+                            let user = binding.first().unwrap();
+
+                            // TODO: unwrap
+                            let _ = stream
+                                .write(format!("Authenticating user {}\n", user).as_bytes())
+                                .await
+                                .unwrap();
+                        },
+                        CommandType::Quit => {
+                            let _ = stream.write(b"Quitting session...").await.unwrap();
+
+                            // We will have to do this now,
+                            // but socket closing should be more "gentle"
+                            drop(stream);
+                            break;
+                        },
+                        _ => unimplemented!("Command not implemented")
+                    }
+
+                }
+            });
+
         }
     }
 }

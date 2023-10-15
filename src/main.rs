@@ -2,7 +2,7 @@ use std::env;
 use std::net::{Ipv4Addr, SocketAddr, IpAddr};
 use std::process::exit;
 use std::str::FromStr;
-use bark_ftp::server::{FtpServer, Server};
+use bark_ftp::server::Server;
 
 fn parse_address(addr: &str) -> IpAddr {
     // TODO: unwrap
@@ -10,7 +10,8 @@ fn parse_address(addr: &str) -> IpAddr {
     IpAddr::V4(result)
 }
 
-fn main() -> std::io::Result<()> {
+#[tokio::main]
+async fn main() -> Result<(), std::io::Error> {
     let args: Vec<String> = env::args().collect();
 
     if args.len() != 3 {
@@ -31,9 +32,15 @@ fn main() -> std::io::Result<()> {
 
     let socket_addr = SocketAddr::new(host, port);
 
-    let mut server = Server::new(socket_addr)?;
+    let mut server = match Server::new(socket_addr).await {
+        Ok(server) => server,
+        Err(e) => {
+            eprintln!("Error creating server: {}", e);
+            exit(1);
+        }
+    };
 
-    server.run();
+    server.run().await;
 
     Ok(())
 }
