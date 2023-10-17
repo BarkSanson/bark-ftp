@@ -35,8 +35,14 @@ impl Server {
                     let n = stream.read(&mut buf).await.unwrap();
 
                     let str_buf = String::from_utf8_lossy(&buf[..n]);
-                    let request = FtpRequest::from_string(str_buf.to_string());
 
+                    let str_buf = str_buf.trim();
+
+                    if str_buf.is_empty() {
+                        continue;
+                    }
+
+                    let request = FtpRequest::from_string(str_buf.to_string());
 
                     if let Err(err) = request {
                         // TODO: unwrap
