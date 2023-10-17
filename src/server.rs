@@ -24,54 +24,54 @@ impl Server {
 
 impl Server {
     pub async fn run(&mut self) {
-        let mut set = tokio::task::JoinSet::new();
 
-        let (mut stream, _) = self.control_socket.accept().await.unwrap();
+        loop {
+            let (mut stream, _) = self.control_socket.accept().await.unwrap();
 
-        set.spawn(async move {
-            let mut buf = [0u8; 1024];
+            tokio::spawn(async move {
+                let mut buf = [0u8; 1024];
 
-            loop {
-                let n = stream.read(&mut buf).await.unwrap();
+                loop {
+                    let n = stream.read(&mut buf).await.unwrap();
 
-                let str_buf = String::from_utf8_lossy(&buf[..n]);
-                let request = FtpRequest::from_string(str_buf.to_string());
+                    let str_buf = String::from_utf8_lossy(&buf[..n]);
+                    let request = FtpRequest::from_string(str_buf.to_string());
 
 
-                if let Err(err) = request {
-                    // TODO: unwrap
-                    let _ = stream.write(format!("Error parsing request: {}\n, err", err).as_bytes()).await.unwrap();
-                    continue;
-                }
-
-                let request = request.unwrap();
-                match request.command {
-                    CommandType::User=> {
-                        // Fix this
-                        let binding = request.arguments.unwrap();
-                        let user = binding.first().unwrap();
-
+                    if let Err(err) = request {
                         // TODO: unwrap
-                        let _ = stream
-                            .write(format!("Authenticating user {}\n", user).as_bytes())
-                            .await
-                            .unwrap();
-                    },
-                    CommandType::Quit => {
-                        let _ = stream.write(b"Quitting session...").await.unwrap();
+                        let _ = stream.write(format!("Error parsing request: {}\n, err", err).as_bytes()).await.unwrap();
+                        continue;
+                    }
 
-                        // We will have to do this now,
-                        // but socket closing should be more "gentle"
-                        drop(stream);
-                        break;
-                    },
-                    _ => unimplemented!("Command not implemented")
+                    let request = request.unwrap();
+                    match request.command {
+                        CommandType::User=> {
+                            // Fix this
+                            let binding = request.arguments.unwrap();
+                            let user = binding.first().unwrap();
+
+                            // TODO: unwrap
+                            let _ = stream
+                                .write(format!("Authenticating user {}\n", user).as_bytes())
+                                .await
+                                .unwrap();
+                        },
+                        CommandType::Quit => {
+                            let _ = stream.write(b"Quitting session...").await.unwrap();
+
+                            // We will have to do this now,
+                            // but socket closing should be more "gentle"
+                            drop(stream);
+                            break;
+                        },
+                        _ => unimplemented!("Command not implemented")
+                    }
+
                 }
 
-            }
+            });
 
-        });
-
-        set.join_next().await;
+        }
     }
 }
